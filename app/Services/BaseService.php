@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Carbon\Carbon;
 use App\Models\Company\Team;
+use App\Jobs\LogAccountAudit;
 use App\Models\Company\Employee;
 use Illuminate\Support\Facades\Validator;
 use App\Exceptions\NotEnoughPermissionException;
@@ -247,5 +248,18 @@ abstract class BaseService
         }
 
         return $data[$index];
+    }
+
+    public function logAccountAudit(string $action, array $objects, bool $isDummy): void
+    {
+        LogAccountAudit::dispatch([
+            'company_id' => $this->companyId,
+            'action' => $action,
+            'author_id' => $this->author->id,
+            'author_name' => $this->author->name,
+            'audited_at' => Carbon::now(),
+            'objects' => json_encode($objects),
+            'is_dummy' => $isDummy,
+        ])->onQueue('low');
     }
 }
