@@ -2,15 +2,16 @@
 
 namespace App\Services\Company\Adminland\Company;
 
-use Carbon\Carbon;
 use Illuminate\Support\Str;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
 use App\Models\Company\Company;
 use App\Models\Company\Employee;
+use App\Interfaces\ServiceInterface;
 
-class AddUserToCompany extends BaseService
+class AddUserToCompany extends BaseService implements ServiceInterface
 {
+    protected Employee $employee;
+
     /**
      * Get the validation rules that apply to the service.
      *
@@ -24,6 +25,23 @@ class AddUserToCompany extends BaseService
             'user_id' => 'required|integer|exists:users,id',
             'permission_level' => 'required|integer',
             'is_dummy' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'user_added_to_company',
+            'objects_to_log' => [
+                'user_id' => $this->employee->user->id,
+                'user_email' => $this->employee->user->email,
+            ],
         ];
     }
 
@@ -43,26 +61,16 @@ class AddUserToCompany extends BaseService
             ->asAtLeastHR()
             ->canExecuteService();
 
-        $employee = Employee::create([
+        $this->employee = Employee::create([
             'user_id' => $data['user_id'],
             'company_id' => $data['company_id'],
             'uuid' => Str::uuid()->toString(),
             'permission_level' => $data['permission_level'],
+            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
         ]);
 
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'user_added_to_company',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'user_id' => $employee->user->id,
-                'user_email' => $employee->user->email,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        $this->addAuditLog();
 
-        return $employee;
+        return $this->employee;
     }
 }

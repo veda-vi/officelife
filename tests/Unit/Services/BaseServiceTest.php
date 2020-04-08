@@ -6,9 +6,11 @@ use Carbon\Carbon;
 use Tests\TestCase;
 use App\Models\User\User;
 use App\Models\Company\Team;
+use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
 use App\Models\Company\Company;
 use App\Models\Company\Employee;
+use Illuminate\Support\Facades\Queue;
 use App\Exceptions\NotEnoughPermissionException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -180,7 +182,7 @@ class BaseServiceTest extends TestCase
         $this->assertTrue(
             $stub->author($michael->id)
                 ->inCompany($michael->company_id)
-                ->bypassPermissionLevel()
+                ->canBypassPermissionLevelIfEmployee()
                 ->canExecuteService()
         );
 
@@ -270,5 +272,33 @@ class BaseServiceTest extends TestCase
         $this->assertFalse(
             $stub->valueOrFalse($array, 'value')
         );
+    }
+
+    /** @test */
+    public function it_creates_an_audit_log(): void
+    {
+        Queue::fake();
+
+        $stub = $this->getMockForAbstractClass(BaseService::class);
+        $michael = $this->createAdministrator();
+        $stub->companyId = $michael->company_id;
+        $stub->author = $michael;
+        $logs = [
+            'action' => 'service_name',
+            'objects_to_log' => [
+                'user_id' => 1,
+            ],
+        ];
+        $stub->logs([$logs]);
+
+        $stub->addAuditLog();
+
+        Queue::assertPushed(LogAccountAudit::class, function ($job) use ($michael) {
+            return $job->auditLog['action'] === 'service_name' &&
+                $job->auditLog['author_id'] === $michael->id &&
+                $job->auditLog['objects'] === json_encode([
+                    'user_id' => 1,
+                ]);
+        });
     }
 }

@@ -2,13 +2,15 @@
 
 namespace App\Services\Company\Adminland\CompanyNews;
 
-use Carbon\Carbon;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
+use App\Models\Company\Employee;
 use App\Models\Company\CompanyNews;
+use App\Interfaces\ServiceInterface;
 
-class CreateCompanyNews extends BaseService
+class CreateCompanyNews extends BaseService implements ServiceInterface
 {
+    private CompanyNews $news;
+
     /**
      * Get the validation rules that apply to the service.
      *
@@ -23,6 +25,23 @@ class CreateCompanyNews extends BaseService
             'content' => 'required|string|max:65535',
             'created_at' => 'nullable|date_format:Y-m-d H:i:s',
             'is_dummy' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'company_news_created',
+            'objects_to_log' => [
+                'company_news_id' => $this->news->id,
+                'company_news_title' => $this->news->title,
+            ],
         ];
     }
 
@@ -42,33 +61,24 @@ class CreateCompanyNews extends BaseService
             ->asAtLeastHR()
             ->canExecuteService();
 
-        $news = CompanyNews::create([
+        $author = Employee::find($data['author_id']);
+
+        $this->news = CompanyNews::create([
             'company_id' => $data['company_id'],
             'author_id' => $data['author_id'],
-            'author_name' => $this->author->name,
+            'author_name' => $author->name,
             'title' => $data['title'],
             'content' => $data['content'],
             'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
         ]);
 
         if (! empty($data['created_at'])) {
-            $news->created_at = $data['created_at'];
-            $news->save();
+            $this->news->created_at = $data['created_at'];
+            $this->news->save();
         }
 
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'company_news_created',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'company_news_id' => $news->id,
-                'company_news_title' => $news->title,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        $this->addAuditLog();
 
-        return $news;
+        return $this->news;
     }
 }

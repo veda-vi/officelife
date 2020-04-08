@@ -15,35 +15,40 @@ abstract class BaseService
     /**
      * The author (who is an Employee) who calls the service.
      */
-    protected Employee $author;
+    private Employee $author;
 
     /**
      * The author ID of the employee who calls the service.
      * Used to populate the author object above.
      */
-    protected int $authorId;
+    private int $authorId;
 
     /**
      * The id of the company the service is supposed to be executed into.
      */
-    protected int $companyId;
+    private int $companyId;
 
     /**
      * The id of the team that the service is about.
      */
-    protected int $teamId;
+    private int $teamId;
 
     /**
      * The minimum permission level required to process the service for the
      * employee who triggers it.
      */
-    protected int $requiredPermissionLevel;
+    private int $requiredPermissionLevel;
 
     /**
      * Indicates whether the employee can bypass the minimum required permission
      * level to execute the service.
      */
-    protected bool $bypassRequiredPermissionLevel = false;
+    private bool $bypassRequiredPermissionLevel = false;
+
+    /**
+     * Indicates whether the data that is about to get logged is dummy.
+     */
+    private bool $isDummy = false;
 
     /**
      * Sets the author id for the service.
@@ -118,11 +123,32 @@ abstract class BaseService
     }
 
     /**
+     * Indicates that the audit log should be logged as dummy.
+     *
+     * @return self
+     */
+    public function withDummyData(): self
+    {
+        $this->isDummy = true;
+        return $this;
+    }
+
+    /**
      * Get the validation rules that apply to the service.
      *
      * @return array
      */
     public function rules(): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     * @return array
+     */
+    public function logs(): array
     {
         return [];
     }
@@ -250,16 +276,22 @@ abstract class BaseService
         return $data[$index];
     }
 
-    public function logAccountAudit(string $action, array $objects, bool $isDummy): void
+    /**
+     * Create an account audit log.
+     *
+     */
+    public function addAuditLog(): void
     {
+        $data = $this->logs();
+
         LogAccountAudit::dispatch([
             'company_id' => $this->companyId,
-            'action' => $action,
+            'action' => $data['action'],
             'author_id' => $this->author->id,
             'author_name' => $this->author->name,
             'audited_at' => Carbon::now(),
-            'objects' => json_encode($objects),
-            'is_dummy' => $isDummy,
+            'objects' => json_encode($data['objects_to_log']),
+            'is_dummy' => $this->isDummy,
         ])->onQueue('low');
     }
 }

@@ -7,11 +7,14 @@ use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
 use App\Jobs\LogEmployeeAudit;
 use App\Models\Company\Employee;
+use App\Interfaces\ServiceInterface;
 use Carbon\Exceptions\InvalidDateException;
 
-class SetBirthdate extends BaseService
+class SetBirthdate extends BaseService implements ServiceInterface
 {
-    protected Employee $employee;
+    private Employee $employee;
+
+    private Carbon $birthdate;
 
     /**
      * Get the validation rules that apply to the service.
@@ -25,6 +28,24 @@ class SetBirthdate extends BaseService
             'year' => 'required|integer',
             'month' => 'required|integer',
             'day' => 'required|integer',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'employee_birthday_set',
+            'objects_to_log' => [
+                'employee_id' => $this->employee->id,
+                'employee_name' => $this->employee->name,
+                'birthday' => $this->birthdate->format('Y-m-d'),
+            ],
         ];
     }
 
@@ -43,16 +64,17 @@ class SetBirthdate extends BaseService
 
         $this->employee = $this->validateEmployeeBelongsToCompany($data);
 
-        $carbonObject = $this->checkDateValidity($data);
+        $this->checkDateValidity($data);
 
-        $this->save($carbonObject);
+        $this->save();
 
-        $this->log($data, $carbonObject);
+        $this->addAuditLog();
+        $this->addAuditLog();
 
         return $this->employee;
     }
 
-    private function checkDateValidity(array $data): Carbon
+    private function checkDateValidity(array $data): void
     {
         try {
             $carbonObject = Carbon::createSafe($data['year'], $data['month'], $data['day']);
@@ -60,12 +82,12 @@ class SetBirthdate extends BaseService
             throw new \Exception(trans('app.error_invalid_date'));
         }
 
-        return $carbonObject;
+        $this->birthdate = $carbonObject;
     }
 
-    private function save(Carbon $date): void
+    private function save(): void
     {
-        $this->employee->birthdate = $date;
+        $this->employee->birthdate = $this->birthdate;
         $this->employee->save();
     }
 
