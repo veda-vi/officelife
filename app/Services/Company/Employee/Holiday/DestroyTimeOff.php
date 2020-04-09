@@ -2,14 +2,16 @@
 
 namespace App\Services\Company\Employee\Holiday;
 
-use Carbon\Carbon;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
-use App\Jobs\LogEmployeeAudit;
+use App\Models\Company\Employee;
 use App\Models\Company\EmployeePlannedHoliday;
 
 class DestroyTimeOff extends BaseService
 {
+    private EmployeePlannedHoliday $holiday;
+
+    private Employee $employee;
+
     /**
      * Get the validation rules that apply to the service.
      *
@@ -22,6 +24,23 @@ class DestroyTimeOff extends BaseService
             'company_id' => 'required|integer|exists:companies,id',
             'employee_id' => 'required|integer|exists:employees,id',
             'employee_planned_holiday_id' => 'required|integer|exists:employee_planned_holidays,id',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'time_off_destroyed',
+            'employee_id' => $this->employee->id,
+            'objects_to_log' => [
+                'planned_holiday_date' => $this->holiday->planned_date,
+            ],
         ];
     }
 
@@ -42,32 +61,13 @@ class DestroyTimeOff extends BaseService
             ->canBypassPermissionLevelIfEmployee($data['employee_id'])
             ->canExecuteService();
 
-        $holiday = EmployeePlannedHoliday::findOrFail($data['employee_planned_holiday_id']);
-        $holiday->delete();
+        $this->employee = $this->validateEmployeeBelongsToCompany($data);
 
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'time_off_destroyed',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'planned_holiday_date' => $holiday->planned_date,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        $this->holiday = EmployeePlannedHoliday::findOrFail($data['employee_planned_holiday_id']);
+        $this->holiday->delete();
 
-        LogEmployeeAudit::dispatch([
-            'employee_id' => $holiday->employee_id,
-            'action' => 'time_off_destroyed',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'planned_holiday_date' => $holiday->planned_date,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        $this->addAuditLog();
+        $this->addEmployeeLog();
 
         return true;
     }

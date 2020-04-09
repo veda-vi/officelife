@@ -30,6 +30,17 @@ class AssignManager extends BaseService
     }
 
     /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [];
+    }
+
+    /**
      * Set an employee as being the manager of the given employee.
      *
      * @param array $data

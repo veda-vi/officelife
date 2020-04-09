@@ -462,15 +462,15 @@ class LogHelper
             $sentence = trans('account.employee_log_pronoun_removed');
         }
 
-        if ($log->action == 'description_set') {
+        if ($log->action == 'employee_description_set') {
             $sentence = trans('account.employee_log_description_set');
         }
 
-        if ($log->action == 'description_cleared') {
+        if ($log->action == 'employee_description_cleared') {
             $sentence = trans('account.employee_log_description_cleared');
         }
 
-        if ($log->action == 'birthday_set') {
+        if ($log->action == 'employee_birthday_set') {
             $sentence = trans('account.employee_birthday_set');
         }
 

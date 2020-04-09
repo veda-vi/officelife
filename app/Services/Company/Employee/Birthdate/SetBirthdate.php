@@ -3,14 +3,11 @@
 namespace App\Services\Company\Employee\Birthdate;
 
 use Carbon\Carbon;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
-use App\Jobs\LogEmployeeAudit;
 use App\Models\Company\Employee;
-use App\Interfaces\ServiceInterface;
 use Carbon\Exceptions\InvalidDateException;
 
-class SetBirthdate extends BaseService implements ServiceInterface
+class SetBirthdate extends BaseService
 {
     private Employee $employee;
 
@@ -41,6 +38,7 @@ class SetBirthdate extends BaseService implements ServiceInterface
     {
         return [
             'action' => 'employee_birthday_set',
+            'employee_id' => $this->employee->id,
             'objects_to_log' => [
                 'employee_id' => $this->employee->id,
                 'employee_name' => $this->employee->name,
@@ -69,11 +67,16 @@ class SetBirthdate extends BaseService implements ServiceInterface
         $this->save();
 
         $this->addAuditLog();
-        $this->addAuditLog();
+        $this->addEmployeeLog();
 
         return $this->employee;
     }
 
+    /**
+     * Make sure that the given date is a valid Carbon date.
+     *
+     * @param array $data
+     */
     private function checkDateValidity(array $data): void
     {
         try {
@@ -85,38 +88,13 @@ class SetBirthdate extends BaseService implements ServiceInterface
         $this->birthdate = $carbonObject;
     }
 
+    /**
+     * Save the data.
+     *
+     */
     private function save(): void
     {
         $this->employee->birthdate = $this->birthdate;
         $this->employee->save();
-    }
-
-    private function log(array $data, Carbon $date): void
-    {
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'employee_birthday_set',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'employee_id' => $this->employee->id,
-                'employee_name' => $this->employee->name,
-                'birthday' => $date->format('Y-m-d'),
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
-
-        LogEmployeeAudit::dispatch([
-            'employee_id' => $data['employee_id'],
-            'action' => 'birthday_set',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'birthday' => $date->format('Y-m-d'),
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
     }
 }

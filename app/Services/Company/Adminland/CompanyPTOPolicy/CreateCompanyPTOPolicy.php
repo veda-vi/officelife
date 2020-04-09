@@ -4,7 +4,6 @@ namespace App\Services\Company\Adminland\CompanyPTOPolicy;
 
 use Carbon\Carbon;
 use App\Helpers\DateHelper;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
 use App\Models\Company\CompanyCalendar;
 use App\Models\Company\CompanyPTOPolicy;
@@ -12,6 +11,7 @@ use App\Exceptions\CompanyPTOPolicyAlreadyExistException;
 
 class CreateCompanyPTOPolicy extends BaseService
 {
+    private CompanyPTOPolicy $ptoPolicy;
     /**
      * Get the validation rules that apply to the service.
      *
@@ -27,6 +27,23 @@ class CreateCompanyPTOPolicy extends BaseService
             'default_amount_of_sick_days' => 'required|integer',
             'default_amount_of_pto_days' => 'required|integer',
             'is_dummy' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'company_pto_policy_created',
+            'objects_to_log' => [
+                'company_pto_policy_id' => $this->ptoPolicy->id,
+                'company_pto_policy_year' => $this->ptoPolicy->year,
+            ],
         ];
     }
 
@@ -56,7 +73,7 @@ class CreateCompanyPTOPolicy extends BaseService
             throw new CompanyPTOPolicyAlreadyExistException();
         }
 
-        $ptoPolicy = CompanyPTOPolicy::create([
+        $this->ptoPolicy = CompanyPTOPolicy::create([
             'company_id' => $data['company_id'],
             'year' => $data['year'],
             'total_worked_days' => 261,
@@ -67,25 +84,14 @@ class CreateCompanyPTOPolicy extends BaseService
         ]);
 
         // fix the number of worked days to be sure
-        $offDays = $this->populateCalendar($data, $ptoPolicy);
+        $offDays = $this->populateCalendar($data);
         $numberOfWorkedDays = DateHelper::getNumberOfDaysInYear(Carbon::now()) - $offDays;
-        $ptoPolicy->total_worked_days = $numberOfWorkedDays;
-        $ptoPolicy->save();
+        $this->ptoPolicy->total_worked_days = $numberOfWorkedDays;
+        $this->ptoPolicy->save();
 
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'company_pto_policy_created',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'company_pto_policy_id' => $ptoPolicy->id,
-                'company_pto_policy_year' => $ptoPolicy->year,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        $this->addAuditLog();
 
-        return $ptoPolicy;
+        return $this->ptoPolicy;
     }
 
     /**
@@ -94,12 +100,11 @@ class CreateCompanyPTOPolicy extends BaseService
      * Right after, employers will be able to identify which days are holidays
      * and therefore considered as being off.
      *
-     * @param array            $data
-     * @param CompanyPTOPolicy $ptoPolicy
+     * @param array $data
      *
      * @return int
      */
-    private function populateCalendar(array $data, CompanyPTOPolicy $ptoPolicy): int
+    private function populateCalendar(array $data): int
     {
         $day = Carbon::create($data['year']);
         $numberOfDaysOff = 0;
@@ -112,7 +117,7 @@ class CreateCompanyPTOPolicy extends BaseService
             }
 
             CompanyCalendar::create([
-                'company_pto_policy_id' => $ptoPolicy->id,
+                'company_pto_policy_id' => $this->ptoPolicy->id,
                 'day' => $day->format('Y-m-d'),
                 'day_of_week' => $day->dayOfWeek,
                 'day_of_year' => $day->dayOfYear,

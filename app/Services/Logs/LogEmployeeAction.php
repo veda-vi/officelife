@@ -29,6 +29,17 @@ class LogEmployeeAction extends BaseService
     }
 
     /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [];
+    }
+
+    /**
      * Log an action that happened to the employee.
      * This also creates an audit log.
      *

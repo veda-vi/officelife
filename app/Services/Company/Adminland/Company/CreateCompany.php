@@ -7,10 +7,9 @@ use Illuminate\Support\Str;
 use App\Services\BaseService;
 use App\Models\Company\Company;
 use App\Models\Company\Employee;
-use App\Interfaces\ServiceInterface;
 use App\Services\User\Avatar\GenerateAvatar;
 
-class CreateCompany extends BaseService implements ServiceInterface
+class CreateCompany extends BaseService
 {
     private Company $company;
     private Employee $employee;

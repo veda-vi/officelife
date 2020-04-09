@@ -2,15 +2,16 @@
 
 namespace App\Services\Company\Employee\EmployeeStatus;
 
-use Carbon\Carbon;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
-use App\Jobs\LogEmployeeAudit;
 use App\Models\Company\Employee;
 use App\Models\Company\EmployeeStatus;
 
 class AssignEmployeeStatusToEmployee extends BaseService
 {
+    private Employee $employee;
+
+    private EmployeeStatus $status;
+
     /**
      * Get the validation rules that apply to the service.
      *
@@ -24,6 +25,26 @@ class AssignEmployeeStatusToEmployee extends BaseService
             'employee_id' => 'required|integer|exists:employees,id',
             'employee_status_id' => 'required|integer|exists:employee_statuses,id',
             'is_dummy' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'employee_status_assigned',
+            'employee_id' => $this->employee->id,
+            'objects_to_log' => [
+                'employee_id' => $this->employee->id,
+                'employee_name' => $this->employee->name,
+                'employee_status_id' => $this->status->id,
+                'employee_status_name' => $this->status->name,
+            ],
         ];
     }
 
@@ -43,47 +64,17 @@ class AssignEmployeeStatusToEmployee extends BaseService
             ->asAtLeastHR()
             ->canExecuteService();
 
-        $employee = $this->validateEmployeeBelongsToCompany($data);
+        $this->employee = $this->validateEmployeeBelongsToCompany($data);
 
-        $status = EmployeeStatus::where('company_id', $data['company_id'])
+        $this->status = EmployeeStatus::where('company_id', $data['company_id'])
             ->findOrFail($data['employee_status_id']);
 
-        $employee->employee_status_id = $status->id;
-        $employee->save();
+        $this->employee->employee_status_id = $this->status->id;
+        $this->employee->save();
 
-        $this->log($employee, $data, $status);
+        $this->addAuditLog();
+        $this->addEmployeeLog();
 
-        return $employee;
-    }
-
-    private function log(Employee $employee, array $data, EmployeeStatus $status): void
-    {
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'employee_status_assigned',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'employee_id' => $employee->id,
-                'employee_name' => $employee->name,
-                'employee_status_id' => $status->id,
-                'employee_status_name' => $status->name,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
-
-        LogEmployeeAudit::dispatch([
-            'employee_id' => $data['employee_id'],
-            'action' => 'employee_status_assigned',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'employee_status_id' => $status->id,
-                'employee_status_name' => $status->name,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        return $this->employee;
     }
 }

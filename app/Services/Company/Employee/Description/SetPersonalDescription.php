@@ -2,14 +2,13 @@
 
 namespace App\Services\Company\Employee\Description;
 
-use Carbon\Carbon;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
-use App\Jobs\LogEmployeeAudit;
 use App\Models\Company\Employee;
 
 class SetPersonalDescription extends BaseService
 {
+    private Employee $employee;
+
     /**
      * Get the validation rules that apply to the service.
      *
@@ -23,6 +22,24 @@ class SetPersonalDescription extends BaseService
             'employee_id' => 'required|integer|exists:employees,id',
             'description' => 'required|string|max:65535',
             'is_dummy' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'employee_description_set',
+            'employee_id' => $this->employee->id,
+            'objects_to_log' => [
+                'employee_id' => $this->employee->id,
+                'employee_name' => $this->employee->name,
+            ],
         ];
     }
 
@@ -46,34 +63,14 @@ class SetPersonalDescription extends BaseService
             ->canBypassPermissionLevelIfEmployee($data['employee_id'])
             ->canExecuteService();
 
-        $employee = $this->validateEmployeeBelongsToCompany($data);
+        $this->employee = $this->validateEmployeeBelongsToCompany($data);
 
-        $employee->description = $data['description'];
-        $employee->save();
+        $this->employee->description = $data['description'];
+        $this->employee->save();
 
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'employee_description_set',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'employee_id' => $employee->id,
-                'employee_name' => $employee->name,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        $this->addAuditLog();
+        $this->addEmployeeLog();
 
-        LogEmployeeAudit::dispatch([
-            'employee_id' => $data['employee_id'],
-            'action' => 'description_set',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
-
-        return $employee;
+        return $this->employee;
     }
 }

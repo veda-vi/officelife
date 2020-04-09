@@ -2,14 +2,16 @@
 
 namespace App\Services\Company\Employee\EmployeeStatus;
 
-use Carbon\Carbon;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
-use App\Jobs\LogEmployeeAudit;
 use App\Models\Company\Employee;
+use App\Models\Company\EmployeeStatus;
 
 class RemoveEmployeeStatusFromEmployee extends BaseService
 {
+    private Employee $employee;
+
+    private EmployeeStatus $status;
+
     /**
      * Get the validation rules that apply to the service.
      *
@@ -22,6 +24,26 @@ class RemoveEmployeeStatusFromEmployee extends BaseService
             'author_id' => 'required|integer|exists:employees,id',
             'employee_id' => 'required|integer|exists:employees,id',
             'is_dummy' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'employee_status_removed',
+            'employee_id' => $this->employee->id,
+            'objects_to_log' => [
+                'employee_id' => $this->employee->id,
+                'employee_name' => $this->employee->name,
+                'employee_status_id' => $this->status->id,
+                'employee_status_name' => $this->status->name,
+            ],
         ];
     }
 
@@ -41,43 +63,17 @@ class RemoveEmployeeStatusFromEmployee extends BaseService
             ->asAtLeastHR()
             ->canExecuteService();
 
-        $employee = $this->validateEmployeeBelongsToCompany($data);
+        $this->employee = $this->validateEmployeeBelongsToCompany($data);
 
-        $employeeStatus = $employee->status;
+        $this->status = $this->employee->status;
 
-        $employee->employee_status_id = null;
-        $employee->save();
+        $this->employee->employee_status_id = null;
+        $this->employee->save();
+        $this->employee->refresh();
 
-        LogAccountAudit::dispatch([
-            'company_id' => $data['company_id'],
-            'action' => 'employee_status_removed',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'employee_id' => $employee->id,
-                'employee_name' => $employee->name,
-                'employee_status_id' => $employeeStatus->id,
-                'employee_status_name' => $employeeStatus->name,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
+        $this->addAuditLog();
+        $this->addEmployeeLog();
 
-        LogEmployeeAudit::dispatch([
-            'employee_id' => $data['employee_id'],
-            'action' => 'employee_status_removed',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'employee_status_id' => $employeeStatus->id,
-                'employee_status_name' => $employeeStatus->name,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
-
-        $employee->refresh();
-
-        return $employee;
+        return $this->employee;
     }
 }

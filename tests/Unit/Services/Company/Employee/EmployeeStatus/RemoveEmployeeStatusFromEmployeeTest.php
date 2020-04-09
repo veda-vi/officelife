@@ -91,6 +91,8 @@ class RemoveEmployeeStatusFromEmployeeTest extends TestCase
             return $job->auditLog['action'] === 'employee_status_removed' &&
                 $job->auditLog['author_id'] === $michael->id &&
                 $job->auditLog['objects'] === json_encode([
+                    'employee_id' => $michael->id,
+                    'employee_name' => $michael->name,
                     'employee_status_id' => $status->id,
                     'employee_status_name' => $status->name,
                 ]);

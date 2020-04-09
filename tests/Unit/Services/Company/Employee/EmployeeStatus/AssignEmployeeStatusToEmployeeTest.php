@@ -112,6 +112,8 @@ class AssignEmployeeStatusToEmployeeTest extends TestCase
             return $job->auditLog['action'] === 'employee_status_assigned' &&
                 $job->auditLog['author_id'] === $michael->id &&
                 $job->auditLog['objects'] === json_encode([
+                    'employee_id' => $michael->id,
+                    'employee_name' => $michael->name,
                     'employee_status_id' => $employeeStatus->id,
                     'employee_status_name' => $employeeStatus->name,
                 ]);

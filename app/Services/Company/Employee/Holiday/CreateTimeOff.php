@@ -4,16 +4,18 @@ namespace App\Services\Company\Employee\Holiday;
 
 use Exception;
 use Carbon\Carbon;
-use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
 use App\Helpers\HolidayHelper;
-use App\Jobs\LogEmployeeAudit;
 use Illuminate\Validation\Rule;
 use App\Models\Company\Employee;
 use App\Models\Company\EmployeePlannedHoliday;
 
 class CreateTimeOff extends BaseService
 {
+    private Employee $employee;
+
+    private EmployeePlannedHoliday $plannedHoliday;
+
     /**
      * Get the validation rules that apply to the service.
      *
@@ -38,6 +40,24 @@ class CreateTimeOff extends BaseService
     }
 
     /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [
+            'action' => 'time_off_created',
+            'employee_id' => $this->employee->id,
+            'objects_to_log' => [
+                'planned_holiday_id' => $this->plannedHoliday->id,
+                'planned_holiday_date' => $this->plannedHoliday->planned_date,
+            ],
+        ];
+    }
+
+    /**
      * Log a time off for the given employee.
      * A time off can only be of two types: half day or full day.
      * For any given day you can therefore either be a full day, or two half
@@ -53,7 +73,7 @@ class CreateTimeOff extends BaseService
     {
         $this->validateRules($data);
 
-        $employee = Employee::findOrFail($data['employee_id']);
+        $this->employee = $this->validateEmployeeBelongsToCompany($data);
 
         $this->author($data['author_id'])
             ->inCompany($data['company_id'])
@@ -64,7 +84,7 @@ class CreateTimeOff extends BaseService
         $suggestedDate = Carbon::parse($data['date']);
 
         // grab the PTO policy and check wether this day is a worked day or not
-        $ptoPolicy = $employee->company->getCurrentPTOPolicy();
+        $ptoPolicy = $this->employee->company->getCurrentPTOPolicy();
         if (! HolidayHelper::isDayWorkedForCompany($ptoPolicy, $suggestedDate)) {
             throw new Exception('The day is considered worked for the company');
         }
@@ -74,33 +94,30 @@ class CreateTimeOff extends BaseService
         // this day as it’s already taken.
         // If the date is already taken but as half, it means we can take it but
         // only as a half day.
-        $existingPlannedHoliday = $this->getExistingPlannedHoliday($employee, $suggestedDate);
+        $existingPlannedHoliday = $this->getExistingPlannedHoliday($suggestedDate);
         $plannedHoliday = '';
 
         if ($existingPlannedHoliday) {
             if ($this->validateCreationHoliday($existingPlannedHoliday, $data)) {
-                $plannedHoliday = $this->createPlannedHoliday($data, $suggestedDate);
+                $this->createPlannedHoliday($data, $suggestedDate);
             }
         } else {
-            $plannedHoliday = $this->createPlannedHoliday($data, $suggestedDate);
+            $this->createPlannedHoliday($data, $suggestedDate);
         }
 
-        $this->createLogs($employee, $plannedHoliday, $data);
-
-        return $plannedHoliday;
+        return $this->plannedHoliday;
     }
 
     /**
      * Get the planned holiday object for this date, if it already exists.
      *
-     * @param Employee $employee
-     * @param Carbon   $date
+     * @param Carbon $date
      *
      * @return EmployeePlannedHoliday
      */
-    private function getExistingPlannedHoliday(Employee $employee, Carbon $date)
+    private function getExistingPlannedHoliday(Carbon $date)
     {
-        $holiday = EmployeePlannedHoliday::where('employee_id', $employee->id)
+        $holiday = EmployeePlannedHoliday::where('employee_id', $this->employee->id)
             ->where('planned_date', $date->format('Y-m-d 00:00:00'))
             ->count();
 
@@ -108,7 +125,7 @@ class CreateTimeOff extends BaseService
             throw new Exception();
         }
 
-        $holiday = EmployeePlannedHoliday::where('employee_id', $employee->id)
+        $holiday = EmployeePlannedHoliday::where('employee_id', $this->employee->id)
             ->where('planned_date', $date->format('Y-m-d 00:00:00'))
             ->first();
 
@@ -144,53 +161,14 @@ class CreateTimeOff extends BaseService
      *
      * @param array  $data
      * @param Carbon $date
-     *
-     * @return EmployeePlannedHoliday
      */
-    private function createPlannedHoliday(array $data, Carbon $date): EmployeePlannedHoliday
+    private function createPlannedHoliday(array $data, Carbon $date): void
     {
-        return EmployeePlannedHoliday::create([
+        $this->plannedHoliday = EmployeePlannedHoliday::create([
             'employee_id' => $data['employee_id'],
             'planned_date' => $date,
             'type' => $data['type'],
             'full' => $data['full'],
         ]);
-    }
-
-    /**
-     * Create the audit logs.
-     *
-     * @param Employee               $employee
-     * @param EmployeePlannedHoliday $plannedHoliday
-     * @param array                  $data
-     *
-     */
-    private function createLogs(Employee $employee, EmployeePlannedHoliday $plannedHoliday, array $data)
-    {
-        LogAccountAudit::dispatch([
-            'company_id' => $employee->company_id,
-            'action' => 'time_off_created',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'planned_holiday_id' => $plannedHoliday->id,
-                'planned_holiday_date' => $plannedHoliday->planned_date,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
-
-        LogEmployeeAudit::dispatch([
-            'employee_id' => $employee->id,
-            'action' => 'time_off_created',
-            'author_id' => $this->author->id,
-            'author_name' => $this->author->name,
-            'audited_at' => Carbon::now(),
-            'objects' => json_encode([
-                'planned_holiday_id' => $plannedHoliday->id,
-                'planned_holiday_date' => $plannedHoliday->planned_date,
-            ]),
-            'is_dummy' => $this->valueOrFalse($data, 'is_dummy'),
-        ])->onQueue('low');
     }
 }

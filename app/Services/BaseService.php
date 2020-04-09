@@ -5,6 +5,7 @@ namespace App\Services;
 use Carbon\Carbon;
 use App\Models\Company\Team;
 use App\Jobs\LogAccountAudit;
+use App\Jobs\LogEmployeeAudit;
 use App\Models\Company\Employee;
 use Illuminate\Support\Facades\Validator;
 use App\Exceptions\NotEnoughPermissionException;
@@ -29,11 +30,6 @@ abstract class BaseService
     private int $companyId;
 
     /**
-     * The id of the team that the service is about.
-     */
-    private int $teamId;
-
-    /**
      * The minimum permission level required to process the service for the
      * employee who triggers it.
      */
@@ -51,6 +47,16 @@ abstract class BaseService
     private bool $isDummy = false;
 
     /**
+     * Get the validation rules that apply to the service.
+     */
+    abstract public function rules();
+
+    /**
+     * Get the data to log after the service has been executed.
+     */
+    abstract public function logs();
+
+    /**
      * Sets the author id for the service.
      *
      * @param integer $givenAuthor
@@ -64,6 +70,17 @@ abstract class BaseService
     }
 
     /**
+     * Gets the author id for the service.
+     *
+    *
+     * @return int
+     */
+    public function getAuthor(): int
+    {
+        return $this->authorId;
+    }
+
+    /**
      * Sets the company id for the service.
      *
      * @param integer $company
@@ -74,6 +91,26 @@ abstract class BaseService
     {
         $this->companyId = $company;
         return $this;
+    }
+
+    /**
+     * Sets the company id for the service.
+     *
+     * @return int
+     */
+    public function getCompany(): int
+    {
+        return $this->companyId;
+    }
+
+    /**
+     * Gets the permission level.
+     *
+     * @return self
+     */
+    public function getPermissionLevel(): int
+    {
+        return $this->requiredPermissionLevel;
     }
 
     /**
@@ -110,6 +147,18 @@ abstract class BaseService
     }
 
     /**
+     * Gets the information about the employee having the right to execute the
+     * service regardless of the permission level.
+     *
+     *
+     * @return bool
+     */
+    public function getBypassPermissionLevelFlag(): bool
+    {
+        return $this->bypassRequiredPermissionLevel;
+    }
+
+    /**
      * Sets the permission to bypass the minimum level requirement.
      *
      * @param integer $employeeId
@@ -123,6 +172,16 @@ abstract class BaseService
     }
 
     /**
+     * Gets the dummy information.
+     *
+     * @return bool
+     */
+    public function getDummyStatus(): bool
+    {
+        return $this->isDummy;
+    }
+
+    /**
      * Indicates that the audit log should be logged as dummy.
      *
      * @return self
@@ -131,26 +190,6 @@ abstract class BaseService
     {
         $this->isDummy = true;
         return $this;
-    }
-
-    /**
-     * Get the validation rules that apply to the service.
-     *
-     * @return array
-     */
-    public function rules(): array
-    {
-        return [];
-    }
-
-    /**
-     * Get the data to log after the service has been executed.
-     *
-     * @return array
-     */
-    public function logs(): array
-    {
-        return [];
     }
 
     /**
@@ -286,6 +325,25 @@ abstract class BaseService
 
         LogAccountAudit::dispatch([
             'company_id' => $this->companyId,
+            'action' => $data['action'],
+            'author_id' => $this->author->id,
+            'author_name' => $this->author->name,
+            'audited_at' => Carbon::now(),
+            'objects' => json_encode($data['objects_to_log']),
+            'is_dummy' => $this->isDummy,
+        ])->onQueue('low');
+    }
+
+    /**
+     * Create an employee audit log.
+     *
+     */
+    public function addEmployeeLog(): void
+    {
+        $data = $this->logs();
+
+        LogEmployeeAudit::dispatch([
+            'employee_id' => $data['employee_id'],
             'action' => $data['action'],
             'author_id' => $this->author->id,
             'author_name' => $this->author->name,

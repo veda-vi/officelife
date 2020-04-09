@@ -20,27 +20,109 @@ class BaseServiceTest extends TestCase
     use DatabaseTransactions;
 
     /** @test */
-    public function it_returns_an_empty_rule_array(): void
+    public function it_sets_and_gets_the_author(): void
     {
         $stub = $this->getMockForAbstractClass(BaseService::class);
+        $stub->author(2);
 
-        $this->assertIsArray(
-            $stub->rules()
+        $this->assertEquals(
+            2,
+            $stub->getAuthor()
         );
     }
 
     /** @test */
-    public function it_validates_rules(): void
+    public function it_sets_and_gets_the_company_id(): void
     {
-        $rules = [
-            'street' => 'nullable|string|max:255',
-        ];
-
         $stub = $this->getMockForAbstractClass(BaseService::class);
-        $stub->rules([$rules]);
+        $stub->inCompany(2);
+
+        $this->assertEquals(
+            2,
+            $stub->getCompany()
+        );
+    }
+
+    /** @test */
+    public function it_sets_the_permission_level_as_administrator(): void
+    {
+        $stub = $this->getMockForAbstractClass(BaseService::class);
+        $stub->asAtLeastAdministrator();
+
+        $this->assertEquals(
+            config('officelife.permission_level.administrator'),
+            $stub->getPermissionLevel()
+        );
+    }
+
+    /** @test */
+    public function it_sets_the_permission_level_as_hr(): void
+    {
+        $stub = $this->getMockForAbstractClass(BaseService::class);
+        $stub->asAtLeastHR();
+
+        $this->assertEquals(
+            config('officelife.permission_level.hr'),
+            $stub->getPermissionLevel()
+        );
+    }
+
+    /** @test */
+    public function it_sets_the_permission_level_as_normal_user(): void
+    {
+        $stub = $this->getMockForAbstractClass(BaseService::class);
+        $stub->asNormalUser();
+
+        $this->assertEquals(
+            config('officelife.permission_level.user'),
+            $stub->getPermissionLevel()
+        );
+    }
+
+    /** @test */
+    public function it_sets_the_permission_to_bypass_permission_level(): void
+    {
+        $stub = $this->getMockForAbstractClass(BaseService::class);
+        $stub->author(3);
+
+        $stub->canBypassPermissionLevelIfEmployee(1);
+        $this->assertFalse(
+            $stub->getBypassPermissionLevelFlag()
+        );
+
+        $stub->canBypassPermissionLevelIfEmployee(1);
+        $this->assertFalse(
+            $stub->getBypassPermissionLevelFlag()
+        );
+    }
+
+    /** @test */
+    public function it_indicates_that_we_should_log_with_the_dummy_flag(): void
+    {
+        $stub = $this->getMockForAbstractClass(BaseService::class);
+
+        $this->assertFalse(
+            $stub->getDummyStatus()
+        );
+
+        $stub->withDummyData();
 
         $this->assertTrue(
-            $stub->validateRules([
+            $stub->getDummyStatus()
+        );
+    }
+
+    /** $test */
+    public function it_validates_rules(): void
+    {
+        $michael = $this->createAdministrator();
+        $class = $this->constructAnonymousClassFromAbstract();
+        $class->inCompany($michael->company_id);
+        $class->author($michael->id);
+        $class->asAtLeastAdministrator()->canExecuteService();
+
+        $this->assertTrue(
+            $class->validateRules([
                 'street' => 'la rue du bonheur',
             ])
         );
@@ -279,19 +361,17 @@ class BaseServiceTest extends TestCase
     {
         Queue::fake();
 
-        $stub = $this->getMockForAbstractClass(BaseService::class);
         $michael = $this->createAdministrator();
-        $stub->companyId = $michael->company_id;
-        $stub->author = $michael;
-        $logs = [
-            'action' => 'service_name',
-            'objects_to_log' => [
-                'user_id' => 1,
-            ],
-        ];
-        $stub->logs([$logs]);
 
-        $stub->addAuditLog();
+        // the logs() method is abstract in BaseService
+        // the only way to test it is to instantiate a new class that derives
+        // from base service and implement the logs method in this object
+        $class = $this->constructAnonymousClassFromAbstract();
+        $class->inCompany($michael->company_id);
+        $class->author($michael->id);
+        $class->asAtLeastAdministrator()->canExecuteService();
+
+        $class->addAuditLog();
 
         Queue::assertPushed(LogAccountAudit::class, function ($job) use ($michael) {
             return $job->auditLog['action'] === 'service_name' &&
@@ -300,5 +380,58 @@ class BaseServiceTest extends TestCase
                     'user_id' => 1,
                 ]);
         });
+    }
+
+    /** @test */
+    public function it_creates_an_employee_audit_log(): void
+    {
+        Queue::fake();
+
+        $michael = $this->createAdministrator();
+
+        $class = $this->constructAnonymousClassFromAbstract();
+        $class->inCompany($michael->company_id);
+        $class->author($michael->id);
+        $class->asAtLeastAdministrator()->canExecuteService();
+
+        $class->addEmployeeLog($michael);
+
+        Queue::assertPushed(LogAccountAudit::class, function ($job) use ($michael) {
+            return $job->auditLog['action'] === 'service_name' &&
+                $job->auditLog['author_id'] === $michael->id &&
+                $job->auditLog['objects'] === json_encode([
+                    'user_id' => 1,
+                ]);
+        });
+    }
+
+    /**
+     * In BaseService, there are two abstract methods that we can't test
+     * directly (as they are abstract). This method here instantiate a new class
+     * that extends BaseService so we can actually test those two methods.
+     *
+     */
+    private function constructAnonymousClassFromAbstract()
+    {
+        $newAnonymousClassFromAbstract = new class extends BaseService {
+            public function rules()
+            {
+                return [
+                    'street' => 'nullable|string|max:255',
+                ];
+            }
+
+            public function logs()
+            {
+                return [
+                    'action' => 'service_name',
+                    'objects_to_log' => [
+                        'user_id' => 1,
+                    ],
+                ];
+            }
+        };
+
+        return $newAnonymousClassFromAbstract;
     }
 }

@@ -6,9 +6,8 @@ use Illuminate\Support\Str;
 use App\Services\BaseService;
 use App\Models\Company\Company;
 use App\Models\Company\Employee;
-use App\Interfaces\ServiceInterface;
 
-class AddUserToCompany extends BaseService implements ServiceInterface
+class AddUserToCompany extends BaseService
 {
     protected Employee $employee;
 

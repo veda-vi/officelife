@@ -28,6 +28,17 @@ class UnassignManager extends BaseService
     }
 
     /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [];
+    }
+
+    /**
      * Remove a manager for the given employee.
      *
      * @param array $data

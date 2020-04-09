@@ -103,9 +103,13 @@ class ClearPersonalDescriptionTest extends TestCase
                 ]);
         });
 
-        Queue::assertPushed(LogEmployeeAudit::class, function ($job) use ($michael) {
-            return $job->auditLog['action'] === 'description_cleared' &&
-                $job->auditLog['author_id'] === $michael->id;
+        Queue::assertPushed(LogEmployeeAudit::class, function ($job) use ($michael, $dwight) {
+            return $job->auditLog['action'] === 'employee_description_cleared' &&
+                $job->auditLog['author_id'] === $michael->id &&
+                $job->auditLog['objects'] === json_encode([
+                    'employee_id' => $dwight->id,
+                    'employee_name' => $dwight->name,
+                ]);
         });
     }
 }

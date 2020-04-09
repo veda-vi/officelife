@@ -27,6 +27,17 @@ class LogAccountAction extends BaseService
     }
 
     /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [];
+    }
+
+    /**
      * Log an action that happened in a company.
      * This service is used in the Audit Log screen in the Adminland, and
      * therefore should only be used to log important actions.

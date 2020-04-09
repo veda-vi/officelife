@@ -25,6 +25,17 @@ class ProcessDailyTimeOffBalance extends BaseService
     }
 
     /**
+     * Get the data to log after the service has been executed.
+     *
+     *
+     * @return array
+     */
+    public function logs(): array
+    {
+        return [];
+    }
+
+    /**
      * Calculate, for the given date, the time off balance for the given
      * employee.
      * This is an automated process, triggered via a cron. Therefore we don't
