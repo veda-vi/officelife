@@ -269,10 +269,7 @@ export default {
       processingSearch: false,
       form: {
         searchTerm: null,
-        errors: {
-          type: Array,
-          default: null,
-        },
+        errors: [],
       },
       employees: [],
       teams: [],
