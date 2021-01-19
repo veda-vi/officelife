@@ -7,6 +7,7 @@ use App\Models\User\Avatar;
 use App\Jobs\LogAccountAudit;
 use App\Services\BaseService;
 use App\Jobs\LogEmployeeAudit;
+use App\Helpers\InstanceHelper;
 use App\Models\Company\Employee;
 
 class UploadAvatar extends BaseService
@@ -63,9 +64,11 @@ class UploadAvatar extends BaseService
 
     private function save(): void
     {
+        $disk = InstanceHelper::getDefaultDisk();
+
         Employee::where('id', $this->data['employee_id'])
             ->update([
-                'avatar' => $this->data['photo']->storePublicly('avatars', config('filesystems.default')),
+                'avatar' => $this->data['photo']->storePublicly('avatars', $disk),
                 'avatar_original_filename' => $this->data['photo']->getClientOriginalName(),
                 'avatar_extension' => $this->data['photo']->extension(),
                 'avatar_size' => $this->data['photo']->getSize(),

@@ -11,7 +11,7 @@
   <div>
     <!-- case if an employee is locked -->
     <div v-if="employee.locked" class="bg-white box z-1 pa3 tc mb5">
-      <img loading="lazy" src="/img/streamline-icon-store-close-blackboard@140x140.png" width="140" height="140" alt="meeting"
+      <img loading="lazy" src="/img/streamline-icon-store-close-blackboard@140x140.png" width="140" height="140" alt="locked"
            class=""
       />
 

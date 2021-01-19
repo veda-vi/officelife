@@ -93,6 +93,8 @@ class UploadAvatarTest extends TestCase
             $employee
         );
 
+        Storage::disk('avatars')->assertExists($file->hashName());
+
         Queue::assertPushed(LogAccountAudit::class, function ($job) use ($michael, $dwight) {
             return $job->auditLog['action'] === 'employee_avatar_set' &&
                 $job->auditLog['author_id'] === $michael->id &&

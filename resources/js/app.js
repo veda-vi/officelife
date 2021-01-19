@@ -31,6 +31,10 @@ import Snotify from 'vue-snotify';
 import 'vue-snotify/styles/simple.css';
 Vue.use(Snotify);
 
+// Dependancy for image manipulation
+import VueRx from 'vue-rx';
+Vue.use(VueRx);
+
 // i18n
 import VueI18n from 'vue-i18n';
 Vue.use(VueI18n);
@@ -54,4 +58,3 @@ new Vue({
     },
   }),
 }).$mount(el);
-

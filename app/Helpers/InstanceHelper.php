@@ -31,4 +31,14 @@ class InstanceHelper
             return Cache::get('cachedEmployeeObject_'.Auth::user()->id);
         }
     }
+
+    /**
+     * Return the default disk used to store assets.
+     *
+     * @return string
+     */
+    public static function getDefaultDisk(): string
+    {
+        return config('filesystems.default');
+    }
 }

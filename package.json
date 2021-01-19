@@ -59,6 +59,7 @@
         "laravel-mix-purgecss": "^5.0.0",
         "lodash": "^4.17.20",
         "sass": "^1.27.0",
+        "sweet-modal-vue": "^2.0.0",
         "tachyons": "^4.12.0",
         "v-click-outside": "^3.1.2",
         "v-tooltip": "^2.0.2",
@@ -66,9 +67,11 @@
         "vue-calendar-heatmap": "^0.8.4",
         "vue-i18n": "^8.22.0",
         "vue-loaders": "^4.1.1",
+        "vue-rx": "^6.2.0",
         "vue-select": "^3.10.8",
         "vue-snotify": "^3.2.1",
-        "vue-the-mask": "^0.11.1"
+        "vue-the-mask": "^0.11.1",
+        "vuejs-clipper": "^3.1.2"
     },
     "lint-staged": {
         "resources/**/*.{css,scss}": [
