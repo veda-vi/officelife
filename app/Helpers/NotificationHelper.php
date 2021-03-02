@@ -4,6 +4,7 @@ namespace App\Helpers;
 
 use App\Models\Company\Employee;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use App\Models\Company\Notification;
 
 class NotificationHelper
@@ -17,9 +18,15 @@ class NotificationHelper
      */
     public static function getNotifications(Employee $employee): Collection
     {
-        $notifs = $employee->notifications()
+        // $notifs = $employee->notifications()
+        //     ->where('read', false)
+        //     ->orderBy('created_at', 'desc')
+        //     ->get();
+        $notifs = DB::table('notifications')
+            ->select('id', 'action', 'objects', 'read')
             ->where('read', false)
-            ->orderBy('created_at', 'desc')
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('id')
             ->get();
 
         $notificationCollection = collect([]);
@@ -27,7 +34,7 @@ class NotificationHelper
             $notificationCollection->push([
                 'id' => $notification->id,
                 'action' => $notification->action,
-                'localized_content' => $notification->content,
+                'localized_content' => self::process($notification->action, $notification->objects),
                 'read' => $notification->read,
             ]);
         }
@@ -38,89 +45,92 @@ class NotificationHelper
     /**
      * Return an sentence explaining what the notification contains.
      *
-     * @param Notification $notification
+     * @param string $action
+     * @param string $objects
      *
      * @return string
      */
-    public static function process(Notification $notification): string
+    public static function process(string $action, string $objects): string
     {
-        switch ($notification->action) {
+        $objects = json_decode($objects);
+
+        switch ($action) {
             case 'dummy_data_generated':
                 $sentence = trans('account.notification_dummy_data_generated', [
-                    'name' => $notification->object->{'company_name'},
+                    'name' => $objects->{'company_name'},
                 ]);
                 break;
 
             case 'employee_added_to_company':
                 $sentence = trans('account.notification_employee_added_to_company', [
-                    'name' => $notification->object->{'company_name'},
+                    'name' => $objects->{'company_name'},
                 ]);
                 break;
 
             case 'employee_added_to_team':
                 $sentence = trans('account.notification_employee_added_to_team', [
-                    'name' => $notification->object->{'team_name'},
+                    'name' => $objects->{'team_name'},
                 ]);
                 break;
 
             case 'employee_removed_from_team':
                 $sentence = trans('account.notification_employee_removed_from_team', [
-                    'name' => $notification->object->{'team_name'},
+                    'name' => $objects->{'team_name'},
                 ]);
                 break;
 
             case 'team_lead_set':
                 $sentence = trans('account.notification_team_lead_set', [
-                    'name' => $notification->object->{'team_name'},
+                    'name' => $objects->{'team_name'},
                 ]);
                 break;
 
             case 'team_lead_removed':
                 $sentence = trans('account.notification_team_lead_removed', [
-                    'name' => $notification->object->{'team_name'},
+                    'name' => $objects->{'team_name'},
                 ]);
                 break;
 
             case 'employee_attached_to_recent_ship':
                 $sentence = trans('account.notification_employee_attached_to_recent_ship', [
-                    'title' => $notification->object->{'ship_title'},
+                    'title' => $objects->{'ship_title'},
                 ]);
                 break;
 
             case 'task_assigned':
                 $sentence = trans('account.notification_task_assigned', [
-                    'title' => $notification->object->{'title'},
-                    'name' => $notification->object->{'author_name'},
+                    'title' => $objects->{'title'},
+                    'name' => $objects->{'author_name'},
                 ]);
                 break;
 
             case 'expense_assigned_for_validation':
                 $sentence = trans('account.notification_expense_assigned_for_validation', [
-                    'name' => $notification->object->{'name'},
+                    'name' => $objects->{'name'},
                 ]);
                 break;
 
             case 'expense_accepted_by_manager':
                 $sentence = trans('account.notification_expense_accepted_by_manager', [
-                    'title' => $notification->object->{'title'},
+                    'title' => $objects->{'title'},
                 ]);
                 break;
 
             case 'expense_rejected_by_manager':
                 $sentence = trans('account.notification_expense_rejected_by_manager', [
-                    'title' => $notification->object->{'title'},
+                    'title' => $objects->{'title'},
                 ]);
                break;
 
             case 'expense_accepted_by_accounting':
                 $sentence = trans('account.notification_expense_accepted_by_accounting', [
-                    'title' => $notification->object->{'title'},
+                    'title' => $objects->{'title'},
                 ]);
                 break;
 
             case 'expense_rejected_by_accounting':
                 $sentence = trans('account.notification_expense_rejected_by_accounting', [
-                    'title' => $notification->object->{'title'},
+                    'title' => $objects->{'title'},
                 ]);
                 break;
 
